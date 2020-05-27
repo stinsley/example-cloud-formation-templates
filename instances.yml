@@ -1,0 +1,86 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'cloudformation for k8 nodes'
+
+Parameters:
+
+  VpcId:
+    Type: String
+    Description: VPC ID.
+
+  Region:
+    Type: String
+    Default: us-east-1
+    Description: AWS Region for the VPC.
+
+  Subnet:
+    Type: String
+    Description: Subnet in the VPC.
+
+Resources:
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: k8-cluster
+      GroupDescription: k8 security group
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          CidrIp: '0.0.0.0/0'
+      SecurityGroupIngress:
+        - IpProtocol: '-1'
+          CidrIp: '172.1.0.0/0'
+      VpcId: !Ref VpcId
+
+  MasterInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-<ID HERE>
+      KeyName: ami2-linux
+      InstanceType: m5.2xlarge
+      SecurityGroupIds:
+        - Ref: SecurityGroup
+      SubnetId: !Ref Subnet
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: 256
+        - DeviceName: /dev/sdm
+          Ebs:
+            VolumeSize: 256
+      Tags:
+        - Key: Name
+          Value: k8s-deployments
+
+  LaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      ImageId: ami-<ID here> 
+      SecurityGroups:
+        - Ref: SecurityGroup
+      InstanceType: m5.large
+      KeyName: ami2-linux
+      BlockDeviceMappings:
+        - DeviceName: "/dev/sdk"
+          Ebs:
+            VolumeSize: 256
+        - DeviceName: "/dev/sdc"
+          VirtualName: Auto-Launcher
+
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AvailabilityZones:
+        - Fn::Sub: '${Region}a'
+      VPCZoneIdentifier:
+        - !Ref Subnet
+      LaunchConfigurationName:
+        Ref: LaunchConfiguration
+      MinSize: 1
+      DesiredCapacity: 100
+      MaxSize: 150
+      Tags:
+        - Key: Name
+          PropagateAtLaunch: true
+          Value: k8s-node
